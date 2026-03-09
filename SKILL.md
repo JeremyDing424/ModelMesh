@@ -1,9 +1,9 @@
 ---
-name: execution-partners
-description: Unified skill for delegating tasks to specialized execution partners. Routes coding tasks (implement, refactor, test, fix bugs, write functions) to Codex, and design tasks (UI mockups, HTML pages, SVG icons, color palettes, typography) to Gemini Designer. Use this skill whenever the user wants to execute a coding or design task through a specialized agent — even if they don't explicitly say "Codex" or "Gemini". Trigger for phrases like "implement this", "write tests for", "design a page", "create an icon", "fix this bug", "refactor this code", or "make a mockup".
+name: model-mesh
+description: ModelMesh — unified skill for delegating tasks to specialized execution partners. Routes coding tasks (implement, refactor, test, fix bugs, write functions) to Codex, and design tasks (UI mockups, HTML pages, SVG icons, color palettes, typography) to Gemini. Use this skill whenever the user wants to execute a coding or design task through a specialized agent — even if they don't explicitly say "Codex" or "Gemini". Trigger for phrases like "implement this", "write tests for", "design a page", "create an icon", "fix this bug", "refactor this code", or "make a mockup".
 ---
 
-# Execution Partners — Codex & Gemini Designer
+# ModelMesh — Codex & Gemini
 
 Route tasks to the right execution partner. When in doubt about which to use, consult the Decision Matrix below. For ambiguous tasks, prefer Codex.
 
@@ -29,12 +29,12 @@ Route tasks to the right execution partner. When in doubt about which to use, co
 ## Script Location
 
 ```
-~/.claude/skills/execution-partners/scripts/execute.sh
+~/.claude/skills/model-mesh/scripts/execute.sh
 ```
 
 Verify installation:
 ```bash
-~/.claude/skills/execution-partners/scripts/execute.sh --check
+~/.claude/skills/model-mesh/scripts/execute.sh --check
 ```
 
 ---
@@ -177,11 +177,11 @@ execute.sh "B2B SaaS dashboard — suggest color palette, typography, and spacin
 
 **`Command not found`**
 ```bash
-chmod +x ~/.claude/skills/execution-partners/scripts/execute.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/execute.sh
 ```
 
 **`Partner script not found`**
-Run `execute.sh --check` to see which partner scripts are missing. Ensure both Codex and Gemini Designer skills are installed in `~/.claude/skills/`.
+Run `execute.sh --check` to see which partner scripts are missing. Ensure ModelMesh is installed in `~/.claude/skills/model-mesh/`.
 
 **Gemini API errors**
 - Verify `GEMINI_API_KEY` is set correctly

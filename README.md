@@ -109,21 +109,21 @@ git clone git@github.com:JeremyDing424/ModelMesh.git
 ### 复制到 Claude Skills 目录
 
 ```bash
-cp -r ModelMesh ~/.claude/skills/execution-partners
+cp -r ModelMesh ~/.claude/skills/model-mesh
 ```
 
 ### 赋予脚本执行权限
 
 ```bash
 # macOS / Linux
-chmod +x ~/.claude/skills/execution-partners/scripts/execute.sh
-chmod +x ~/.claude/skills/execution-partners/scripts/ask_codex.sh
-chmod +x ~/.claude/skills/execution-partners/scripts/ask_gemini.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/execute.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/ask_codex.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/ask_gemini.sh
 
 # Windows（Git Bash）
-chmod +x ~/.claude/skills/execution-partners/scripts/execute.sh
-chmod +x ~/.claude/skills/execution-partners/scripts/ask_codex_windows.sh
-chmod +x ~/.claude/skills/execution-partners/scripts/ask_gemini.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/execute.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/ask_codex_windows.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/ask_gemini.sh
 ```
 
 ---
@@ -135,7 +135,7 @@ chmod +x ~/.claude/skills/execution-partners/scripts/ask_gemini.sh
 脚本会自动分析任务描述，将其路由到合适的执行伙伴：
 
 ```bash
-~/.claude/skills/execution-partners/scripts/execute.sh "你的任务描述"
+~/.claude/skills/model-mesh/scripts/execute.sh "你的任务描述"
 ```
 
 ### 代码任务示例（自动路由到 Codex）
@@ -229,7 +229,7 @@ execute.sh "Implement login" --partner gemini --html
 脚本没有执行权限，运行：
 
 ```bash
-chmod +x ~/.claude/skills/execution-partners/scripts/execute.sh
+chmod +x ~/.claude/skills/model-mesh/scripts/execute.sh
 ```
 
 ### `Partner script not found`
