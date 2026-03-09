@@ -1,299 +1,188 @@
 ---
 name: execution-partners
-description: Unified guide for delegating tasks to Codex (code execution) and Gemini Designer (UI/UX design). Use when you need to execute clear plans through either coding or design partners. Codex handles implementation, refactoring, testing; Gemini handles UI mockups, icons, design advice.
+description: Unified skill for delegating tasks to specialized execution partners. Routes coding tasks (implement, refactor, test, fix bugs, write functions) to Codex, and design tasks (UI mockups, HTML pages, SVG icons, color palettes, typography) to Gemini Designer. Use this skill whenever the user wants to execute a coding or design task through a specialized agent — even if they don't explicitly say "Codex" or "Gemini". Trigger for phrases like "implement this", "write tests for", "design a page", "create an icon", "fix this bug", "refactor this code", or "make a mockup".
 ---
 
 # Execution Partners — Codex & Gemini Designer
 
-Unified reference for delegating tasks to your two execution partners: **Codex** for code execution and **Gemini Designer** for design execution.
+Route tasks to the right execution partner. When in doubt about which to use, consult the Decision Matrix below. For ambiguous tasks, prefer Codex.
 
-## Decision Matrix: When to Use Which
+## Decision Matrix
 
-| Task Type | Use Codex | Use Gemini |
-|-----------|-----------|-----------|
-| Implement features | ✓ | |
-| Refactor code | ✓ | |
-| Write/update tests | ✓ | |
-| Bug fixes | ✓ | |
-| Code generation | ✓ | |
-| HTML/web mockups | | ✓ |
-| SVG icons/illustrations | | ✓ |
-| Color palettes | | ✓ |
-| Typography suggestions | | ✓ |
-| Design feedback | | ✓ |
-| UI component design | | ✓ |
-| Layout advice | | ✓ |
+| Task Type | Partner |
+|-----------|---------|
+| Implement features / write code | Codex |
+| Refactor, debug, fix bugs | Codex |
+| Write / update tests | Codex |
+| Code review or analysis | Codex |
+| HTML / web mockups | Gemini |
+| SVG icons / illustrations | Gemini |
+| Color palettes / typography | Gemini |
+| UI design feedback | Gemini |
+
+**Ambiguous words** — these words alone don't determine the partner. Look at the full intent:
+- `form`, `button`, `page`, `component` → likely **Codex** if the task is about logic/validation/handlers
+- `form`, `button`, `page`, `component` → likely **Gemini** if the task is about appearance/layout/mockup
 
 ---
 
-## Part 1: Codex — Code Execution Partner
+## Script Location
 
-Delegate coding tasks to Codex CLI for implementation, refactoring, testing, and bug fixes.
+```
+~/.claude/skills/execution-partners/scripts/execute.sh
+```
+
+Verify installation:
+```bash
+~/.claude/skills/execution-partners/scripts/execute.sh --check
+```
+
+---
+
+## Part 1: Codex — Code Execution
 
 ### Critical Rules
+- Only interact with Codex through the bundled `execute.sh` script. Never call `codex` CLI directly.
+- Run the script once per task. On success (exit 0), read the output file. Do NOT retry.
+- Keep the task prompt focused (~500 words max). Describe WHAT, not HOW.
+- Use `--file` to point Codex to key files — never paste file contents into the prompt.
 
-- ONLY interact with Codex through the bundled shell script. NEVER call `codex` CLI directly.
-- Run the script ONCE per task. If it succeeds (exit code 0), read the output file and proceed. Do NOT re-run or retry.
-- Do NOT read or inspect the script source code. Treat it as a black box.
-- ALWAYS quote file paths containing brackets, spaces, or special characters (e.g. `--file "src/app/[locale]/page.tsx"`).
-- Keep the task prompt focused (~500 words max). Describe WHAT to do and constraints, not step-by-step HOW.
-- Never paste file contents into the prompt. Use `--file` to point Codex to key files — it reads them directly.
-- Don't reference the SKILL.md itself in the prompt.
+### Usage
 
-### Script Location
-
-```
-~/.claude/skills/codex/scripts/ask_codex.sh
-```
-
-### Basic Usage
-
-**Minimal invocation:**
 ```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Your request in natural language"
-```
+# Minimal
+execute.sh "Your request"
 
-**With file context:**
-```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Refactor these components to use the new API" \
+# With file context
+execute.sh "Refactor these components to use the new API" \
   --file src/components/UserList.tsx \
   --file src/components/UserDetail.tsx
-```
 
-**Multi-turn conversation (continue previous session):**
-```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Also add retry logic with exponential backoff" \
-  --session <session_id from previous run>
+# Multi-turn (continue previous session)
+execute.sh "Also add retry logic" --session <session_id>
 ```
 
 ### Output
 
-The script prints on success:
 ```
 session_id=<thread_id>
 output_path=<path to markdown file>
 ```
 
-Read the file at `output_path` to get Codex's response. Save `session_id` for follow-up calls.
+Read `output_path` for Codex's response. Save `session_id` for follow-up calls.
 
 ### Codex Options
 
-- `--workspace <path>` — Target workspace directory (defaults to current directory).
-- `--file <path>` — Point Codex to key entry-point files (repeatable). Don't duplicate contents in prompt.
-- `--session <id>` — Resume a previous session for multi-turn conversation.
-- `--model <name>` — Override model (default: uses Codex config).
-- `--reasoning <level>` — Reasoning effort: `low`, `medium`, `high` (default: `medium`). Use `high` for code review, debugging, complex refactoring.
-- `--sandbox <mode>` — Override sandbox policy (default: workspace-write via full-auto).
-- `--read-only` — Read-only mode for pure discussion/analysis, no file changes.
+| Flag | Description |
+|------|-------------|
+| `--file <path>` | Key file(s) for context (repeatable) |
+| `--workspace <path>` | Target workspace (default: current dir) |
+| `--session <id>` | Resume a previous conversation |
+| `--reasoning <level>` | `low` / `medium` / `high` (default: medium) |
+| `--read-only` | Analysis only, no file changes |
+| `--model <name>` | Override model |
 
-### When to Use Codex
+Use `--reasoning high` for debugging, complex refactoring, or code review.
 
-Call Codex when at least one of these is true:
+### Examples
 
-- The implementation plan is clear and needs coding execution.
-- The task involves batch refactoring, code generation, or repetitive changes.
-- Multiple files need coordinated modifications following a defined pattern.
-- You want a practitioner's perspective on whether a plan is feasible.
-- The task is cost-sensitive and doesn't require deep architectural reasoning.
-- Writing or updating tests based on existing code.
-- Simple-to-moderate bug fixes where the root cause is identified.
-
-### Codex Workflow
-
-1. Design the solution and identify key files involved.
-2. Run the script with a clear, concise task description. Tell Codex the goal and constraints — it figures out implementation details.
-3. Pass relevant files with `--file` (2-6 high-signal entry points; Codex has full workspace access).
-4. Read the output — Codex executes changes and reports what it did.
-5. Review the changes in your workspace.
-
-For multi-step projects, use `--session <id>` to continue with full conversation history.
-
-### Codex Examples
-
-**Batch refactoring:**
 ```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Convert all class components in src/components to functional components with hooks" \
+# Batch refactoring
+execute.sh "Convert all class components in src/components to functional components with hooks" \
   --file src/components
-```
 
-**Test writing:**
-```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Write comprehensive unit tests for the UserService class covering all public methods and error cases" \
+# Test writing
+execute.sh "Write unit tests for UserService covering all public methods and error cases" \
   --file src/services/UserService.ts
-```
 
-**Bug fix:**
-```bash
-~/.claude/skills/codex/scripts/ask_codex.sh "Fix the memory leak in the WebSocket connection handler. The issue is that event listeners aren't being cleaned up on disconnect." \
-  --file src/websocket/handler.ts \
-  --reasoning high
+# Bug fix
+execute.sh "Fix the memory leak in the WebSocket handler — listeners aren't cleaned up on disconnect." \
+  --file src/websocket/handler.ts --reasoning high
 ```
 
 ---
 
-## Part 2: Gemini Designer — Design Execution Partner
-
-Delegate design tasks to Gemini via API for UI mockups, icons, color palettes, and design advice.
+## Part 2: Gemini Designer — Design Execution
 
 ### Critical Rules
+- Only interact with Gemini through `execute.sh`. Never call the API directly.
+- Describe **what** the design is for, not how it should look (unless the user specified).
+- Gemini API key must be set: `GEMINI_API_KEY` env var, `.env.local`, or `~/.config/gemini-designer/api_key`.
 
-- ONLY interact with Gemini through the bundled shell script. NEVER call the API directly.
-- Run the script ONCE per task. Read the output file and proceed.
-- The script requires a Gemini API key. It checks (in order): `GEMINI_API_KEY` env var, `.env.local` in current/parent dirs, `~/.config/gemini-designer/api_key` file.
-- Keep the task prompt short and focused on what the design is for, not how it should look (unless user specified).
-- If the user didn't specify style/color/font, don't invent one — let Gemini decide.
-- Only pass explicit user preferences (e.g. "dark mode", "use blue") when the user actually said so.
+### Usage
 
-### Script Location
-
-```
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh
-```
-
-### Basic Usage
-
-**HTML page design:**
 ```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Design a modern landing page for a SaaS product called FlowSync" --html
-```
+# HTML page
+execute.sh "Design a modern landing page for a SaaS product called FlowSync" --html
 
-**SVG icon:**
-```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Create a minimal settings gear icon, 24x24, stroke style" --svg
-```
+# SVG icon
+execute.sh "Create a minimal settings gear icon, 24x24, stroke style" --svg
 
-**Design advice (text):**
-```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Suggest a color palette and typography for a developer blog"
-```
+# Design advice (text)
+execute.sh "Suggest a color palette and typography for a developer blog"
 
-**Custom output path (auto-infers type from extension):**
-```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Design a pricing card component" \
-  -o ./designs/pricing-card.html
+# Custom output path (type auto-inferred from extension)
+execute.sh "Design a pricing card" -o ./designs/pricing-card.html
 ```
 
 ### Output
 
-The script prints on success:
 ```
 output_path=<path to output file>
 ```
 
-Read the file at `output_path` to get Gemini's response.
+### Gemini Options
 
-### Output Types
+| Flag | Description |
+|------|-------------|
+| `--html` | Output self-contained HTML file |
+| `--svg` | Output SVG code |
+| `-o / --output <path>` | Custom output path |
+| `--model <name>` | Override model |
 
-- `html` — Self-contained HTML file with inline CSS. Ready to open in browser. Use `--html` shorthand or `--output-type html`.
-- `svg` — Clean SVG code. Can be saved directly or embedded in HTML/React. Use `--svg` shorthand or `--output-type svg`.
-- `text` (default) — Design advice in markdown: color palettes, typography, layout suggestions.
+### Environment Variables
 
-If you pass `-o` with a `.html` or `.svg` extension and don't specify an output type, the type is auto-inferred from the file extension.
+| Variable | Description |
+|----------|-------------|
+| `GEMINI_API_KEY` | API key (required) |
+| `GOOGLE_GEMINI_BASE_URL` | API base URL (optional) |
+| `GEMINI_MODEL` | Model name (optional) |
 
-### Gemini Configuration
+### Examples
 
-- `GEMINI_API_KEY` - API key (required)
-- `GOOGLE_GEMINI_BASE_URL` - API base URL (default: `https://zenmux.ai/api/v1`)
-- `GEMINI_MODEL` - Model name (default: `google/gemini-3.1-pro-preview`)
-
-### When to Use Gemini Designer
-
-- Need a visual reference or HTML mockup for a UI component or page
-- Need SVG icons or simple illustrations
-- Need color palette, typography, or layout suggestions
-- Need design feedback or critique on an existing design
-- Want a quick single-page HTML prototype to show a concept
-
-### Gemini Workflow
-
-1. Only describe what the page/component is for and the core content — do NOT add your own design opinions unless the user explicitly specified them.
-2. Run the script with the appropriate output type flag (`--html`, `--svg`, or default text).
-3. Read the output file.
-4. For HTML/SVG: save to the project and iterate if needed.
-5. For text advice: apply the suggestions to your implementation.
-
-### Gemini Tips
-
-- Keep the task prompt short and focused on what it is, not how it should look.
-- If the user didn't specify a style/color/font, don't invent one — let Gemini decide.
-- Only pass explicit user preferences when the user actually said so.
-- Chinese prompts work well — Gemini responds in the same language.
-
-### Gemini Examples
-
-**Landing page mockup:**
 ```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Design a landing page for a project management tool. Include hero section, features overview, pricing table, and CTA buttons." --html
-```
+# Landing page
+execute.sh "Landing page for a project management tool. Hero, features, pricing, CTA." --html
 
-**Icon set:**
-```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "Create 5 SVG icons (16x16) for a dashboard: home, settings, users, analytics, notifications. Minimalist line style." --svg
-```
+# Icon set
+execute.sh "5 SVG icons (16x16): home, settings, users, analytics, notifications. Minimalist line style." --svg
 
-**Design system advice:**
-```bash
-~/.claude/skills/gemini-designer/scripts/ask_gemini.sh "I'm building a B2B SaaS dashboard. Suggest a color palette, typography system, and spacing scale that feels professional and accessible."
+# Design system
+execute.sh "B2B SaaS dashboard — suggest color palette, typography, and spacing scale."
 ```
 
 ---
 
 ## Unified Workflow
 
-### Step 1: Clarify the Task
-- Understand what needs to be done
-- Identify if it's a code task (Codex) or design task (Gemini)
-
-### Step 2: Prepare Context
-- For Codex: Identify key files to pass with `--file`
-- For Gemini: Prepare a clear, focused description of what to design
-
-### Step 3: Execute
-- Run the appropriate script with clear instructions
-- For Codex: Use `--reasoning high` for complex tasks
-- For Gemini: Use appropriate output type (`--html`, `--svg`, or text)
-
-### Step 4: Review & Iterate
-- Read the output file
-- For Codex: Review code changes in your workspace
-- For Gemini: Review design and iterate if needed using `--session` (Codex) or re-run with refinements (Gemini)
-
-### Step 5: Integrate
-- For Codex: Commit changes, run tests
-- For Gemini: Save design files, apply to project
+1. **Clarify** — Is it code or design? Check the Decision Matrix.
+2. **Prepare** — For Codex: identify key files. For Gemini: write a focused description.
+3. **Execute** — Run `execute.sh` with appropriate flags.
+4. **Review** — Read the output file. For Codex: check code changes. For Gemini: open the design file.
+5. **Iterate** — Use `--session` (Codex) or re-run with refinements (Gemini).
 
 ---
 
-## Configuration
+## Troubleshooting
 
-### Codex Configuration
-- Uses Codex CLI configuration (check `~/.codex/config` or project-level config)
-- Model, reasoning level, and sandbox policy can be overridden per-call
+**`Command not found`**
+```bash
+chmod +x ~/.claude/skills/execution-partners/scripts/execute.sh
+```
 
-### Gemini Configuration
-- `GEMINI_API_KEY` environment variable or `~/.config/gemini-designer/api_key` file
-- Optional: `GOOGLE_GEMINI_BASE_URL` and `GEMINI_MODEL` for custom endpoints
+**`Partner script not found`**
+Run `execute.sh --check` to see which partner scripts are missing. Ensure both Codex and Gemini Designer skills are installed in `~/.claude/skills/`.
 
----
-
-## Best Practices
-
-### For Codex Tasks
-- Keep prompts focused on WHAT, not HOW
-- Pass 2-6 key files, let Codex discover the rest
-- Use `--reasoning high` for debugging and complex refactoring
-- Save `session_id` for multi-turn conversations
-- Don't re-run failed tasks — investigate the error first
-
-### For Gemini Tasks
-- Describe the purpose, not the appearance
-- Let Gemini make design decisions unless user specified preferences
-- Use appropriate output type from the start
-- Keep prompts short and clear
-- Iterate by re-running with refinements
-
-### General
-- Use Codex for implementation, Gemini for design — don't mix concerns
-- Review all outputs before integrating into your project
-- For complex projects, use `--session` (Codex) to maintain conversation context
-- Document decisions and keep outputs for future reference
+**Gemini API errors**
+- Verify `GEMINI_API_KEY` is set correctly
+- Check `GOOGLE_GEMINI_BASE_URL` points to the right endpoint (`/v1/chat/completions`)

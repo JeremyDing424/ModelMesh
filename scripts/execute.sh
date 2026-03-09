@@ -3,7 +3,7 @@
 if [ -z "$BASH_VERSION" ]; then
   exec bash "$0" "$@"
 fi
-set -euo pipefail
+set -eo pipefail
 
 usage() {
   cat <<'USAGE'
@@ -11,162 +11,197 @@ Usage:
   execute.sh <task> [options]
 
 Unified execution partner script that automatically routes tasks to:
-  - Codex: for code implementation, refactoring, testing, bug fixes
-  - Gemini: for UI/UX design, HTML mockups, SVG icons, design advice
+  - Codex:  code implementation, refactoring, testing, bug fixes
+  - Gemini: UI/UX design, HTML mockups, SVG icons, design advice
 
 Options:
   --partner <codex|gemini|auto>  Force specific partner or auto-detect (default: auto)
-  --file <path>                  File context (repeatable, for Codex)
-  --workspace <path>             Workspace directory (for Codex)
-  --session <id>                 Resume session (for Codex)
-  --model <name>                 Override model
-  --reasoning <level>            Reasoning effort: low/medium/high (for Codex)
-  --read-only                    Read-only mode (for Codex)
-  --html                         Output as HTML (for Gemini)
-  --svg                          Output as SVG (for Gemini)
-  -o, --output <path>            Output file path (for Gemini)
+  --model <name>                 Override model (shared, works for both partners)
+  --file <path>                  File context (repeatable, Codex only)
+  --workspace <path>             Workspace directory (Codex only)
+  --session <id>                 Resume session (Codex only)
+  --reasoning <level>            Reasoning effort: low/medium/high (Codex only)
+  --read-only                    Read-only mode (Codex only)
+  --html                         Output as HTML (Gemini only)
+  --svg                          Output as SVG (Gemini only)
+  -o, --output <path>            Output file path (Gemini only)
+  --check                        Check if partner scripts are installed, then exit
   -h, --help                     Show this help
 
 Examples:
-  # Auto-detect and execute
   execute.sh "Add a power function to calculator and write tests"
-
-  # Force Codex
   execute.sh "Refactor UserService" --partner codex --file src/services/UserService.ts
-
-  # Force Gemini
   execute.sh "Design a login form" --partner gemini --html
-
-  # With file context
-  execute.sh "Fix the memory leak" --file src/WebSocketHandler.ts
+  execute.sh "Fix the memory leak" --file src/WebSocketHandler.ts --reasoning high
 USAGE
 }
 
-# --- Parse arguments ---
+# --- Paths ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+GEMINI_SCRIPT="$SCRIPT_DIR/ask_gemini.sh"
 
+# Select Codex script based on OS (Windows uses ask_codex_windows.sh)
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    CODEX_SCRIPT="$SCRIPT_DIR/ask_codex_windows.sh" ;;
+  *)
+    CODEX_SCRIPT="$SCRIPT_DIR/ask_codex.sh" ;;
+esac
+
+# --- Pre-flight check ---
+check_dependencies() {
+  local missing=0
+  if [[ ! -x "$CODEX_SCRIPT" ]]; then
+    echo "[WARN] Codex script not found or not executable: $CODEX_SCRIPT" >&2
+    missing=1
+  fi
+  if [[ ! -x "$GEMINI_SCRIPT" ]]; then
+    echo "[WARN] Gemini script not found or not executable: $GEMINI_SCRIPT" >&2
+    missing=1
+  fi
+  if [[ $missing -eq 0 ]]; then
+    echo "[OK] Both partner scripts are installed." >&2
+  fi
+  return $missing
+}
+
+# --- Parse arguments ---
 task_text=""
 partner="auto"
+model_arg=""
 codex_args=()
 gemini_args=()
-output_type=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      usage
-      exit 0
-      ;;
+      usage; exit 0 ;;
+    --check)
+      check_dependencies; exit $? ;;
     --partner)
-      partner="${2:-}"
-      shift 2
-      ;;
-    --file)
-      codex_args+=(--file "${2:-}")
-      shift 2
-      ;;
-    --workspace)
-      codex_args+=(--workspace "${2:-}")
-      shift 2
-      ;;
-    --session)
-      codex_args+=(--session "${2:-}")
-      shift 2
-      ;;
+      partner="${2:?'--partner requires a value'}"
+      shift 2 ;;
     --model)
-      codex_args+=(--model "${2:-}")
-      shift 2
-      ;;
+      model_arg="${2:?'--model requires a value'}"
+      shift 2 ;;
+    --file)
+      codex_args+=(--file "${2:?'--file requires a path'}")
+      shift 2 ;;
+    --workspace)
+      codex_args+=(--workspace "${2:?'--workspace requires a path'}")
+      shift 2 ;;
+    --session)
+      codex_args+=(--session "${2:?'--session requires an id'}")
+      shift 2 ;;
     --reasoning)
-      codex_args+=(--reasoning "${2:-}")
-      shift 2
-      ;;
+      codex_args+=(--reasoning "${2:?'--reasoning requires a level'}")
+      shift 2 ;;
     --read-only)
       codex_args+=(--read-only)
-      shift
-      ;;
+      shift ;;
     --html)
       gemini_args+=(--html)
-      output_type="html"
-      shift
-      ;;
+      shift ;;
     --svg)
       gemini_args+=(--svg)
-      output_type="svg"
-      shift
-      ;;
+      shift ;;
     -o|--output)
-      gemini_args+=(-o "${2:-}")
-      shift 2
-      ;;
+      gemini_args+=(-o "${2:?'-o requires a path'}")
+      shift 2 ;;
     -*)
-      echo "[ERROR] Unknown option: $1" >&2
-      exit 1
-      ;;
+      echo "[ERROR] Unknown option: $1" >&2; exit 1 ;;
     *)
       if [[ -z "$task_text" ]]; then
         task_text="$1"
       else
-        echo "[ERROR] Multiple positional arguments not allowed" >&2
-        exit 1
+        echo "[ERROR] Multiple positional arguments not allowed" >&2; exit 1
       fi
-      shift
-      ;;
+      shift ;;
   esac
 done
 
 if [[ -z "$task_text" ]]; then
   echo "[ERROR] Task text is required" >&2
-  usage
-  exit 1
+  usage; exit 1
 fi
 
-# --- Auto-detect partner if needed ---
+# --model is shared: inject into both partner arg arrays
+if [[ -n "$model_arg" ]]; then
+  codex_args+=(--model "$model_arg")
+  gemini_args+=(--model "$model_arg")
+fi
+
+# --- Weighted keyword auto-detection ---
+# Uses a score: +N for design signals, -N for code signals.
+# Threshold > 0 → Gemini; otherwise → Codex.
+# This prevents single ambiguous words (button, form, page) from
+# flipping the decision when the overall intent is clearly about code.
+
+detect_partner() {
+  local text
+  text="$(echo "$1" | tr '[:upper:]' '[:lower:]')"   # lowercase (bash 3.2 compatible)
+  local score=0
+
+  # Strong design signals (+2)
+  local design2=(mockup "ui design" "ux design" "landing page" "color palette" typography "visual design" "design a " "design the ")
+  for kw in "${design2[@]}"; do
+    [[ "$text" == *"$kw"* ]] && (( score += 2 ))
+  done
+
+  # Weak design signals (+1)
+  local design1=(icon svg html layout color palette visual style)
+  for kw in "${design1[@]}"; do
+    [[ "$text" == *"$kw"* ]] && (( score += 1 ))
+  done
+
+  # Ambiguous words that are often code context (-1 to neutralize design score)
+  local code_context=(handler validate validation route middleware controller service hook component props state)
+  for kw in "${code_context[@]}"; do
+    [[ "$text" == *"$kw"* ]] && (( score -= 1 ))
+  done
+
+  # Strong code signals (-2)
+  local code2=(refactor "write tests" "unit test" "fix bug" "memory leak" implement "add function" "add method" "debug ")
+  for kw in "${code2[@]}"; do
+    [[ "$text" == *"$kw"* ]] && (( score -= 2 ))
+  done
+
+  if (( score > 0 )); then
+    echo "gemini"
+  else
+    echo "codex"
+  fi
+}
 
 if [[ "$partner" == "auto" ]]; then
-  # Convert to lowercase for case-insensitive matching
-  task_lower="${task_text,,}"
-
-  # Design keywords (check first, higher priority)
-  if [[ "$task_lower" =~ (design|mockup|ui|ux|icon|svg|html|layout|color|palette|typography|visual|style|form|button|page|website|landing|card|modal) ]]; then
-    partner="gemini"
-  # Code keywords
-  elif [[ "$task_lower" =~ (implement|refactor|test|fix|bug|function|class|component|api|code|write|add|update|create) ]]; then
-    partner="codex"
-  # Default to codex if ambiguous
-  else
-    partner="codex"
-  fi
-
+  partner="$(detect_partner "$task_text")"
   echo "[INFO] Auto-detected partner: $partner" >&2
 fi
 
 # --- Execute with selected partner ---
-
 case "$partner" in
   codex)
-    codex_script="$HOME/.claude/skills/codex/scripts/ask_codex.sh"
-    if [[ ! -x "$codex_script" ]]; then
-      echo "[ERROR] Codex script not found or not executable: $codex_script" >&2
+    if [[ ! -x "$CODEX_SCRIPT" ]]; then
+      echo "[ERROR] Codex script not found or not executable: $CODEX_SCRIPT" >&2
+      echo "       Run with --check to verify installation." >&2
       exit 1
     fi
-
     echo "[INFO] Executing with Codex..." >&2
-    exec "$codex_script" "$task_text" "${codex_args[@]}"
+    exec "$CODEX_SCRIPT" "$task_text" "${codex_args[@]+"${codex_args[@]}"}"
     ;;
 
   gemini)
-    gemini_script="$HOME/.claude/skills/gemini-designer/scripts/ask_gemini.sh"
-    if [[ ! -x "$gemini_script" ]]; then
-      echo "[ERROR] Gemini script not found or not executable: $gemini_script" >&2
+    if [[ ! -x "$GEMINI_SCRIPT" ]]; then
+      echo "[ERROR] Gemini script not found or not executable: $GEMINI_SCRIPT" >&2
+      echo "       Run with --check to verify installation." >&2
       exit 1
     fi
-
     echo "[INFO] Executing with Gemini Designer..." >&2
-    exec "$gemini_script" "$task_text" "${gemini_args[@]}"
+    exec "$GEMINI_SCRIPT" "$task_text" "${gemini_args[@]+"${gemini_args[@]}"}"
     ;;
 
   *)
-    echo "[ERROR] Invalid partner: $partner (must be codex, gemini, or auto)" >&2
+    echo "[ERROR] Invalid partner: '$partner' (valid: codex, gemini, auto)" >&2
     exit 1
     ;;
 esac
